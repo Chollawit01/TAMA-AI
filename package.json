@@ -1,0 +1,21 @@
+{
+  "name": "tama-ai-line-investment-news",
+  "version": "1.0.0",
+  "description": "AI Investment News Summarizer - LINE Notification Bot",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "test": "node src/test.js"
+  },
+  "dependencies": {
+    "@google/generative-ai": "^0.21.0",
+    "axios": "^1.7.0",
+    "cheerio": "^1.0.0",
+    "dotenv": "^16.4.0",
+    "express": "^4.22.1",
+    "node-cron": "^3.0.3",
+    "rss-parser": "^3.13.0",
+    "winston": "^3.13.0"
+  }
+}
