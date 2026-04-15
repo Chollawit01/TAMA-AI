@@ -1,0 +1,32 @@
+services:
+  - type: web
+    name: tama-ai
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GEMINI_MODEL
+        value: gemini-2.0-flash
+      - key: LINE_CHANNEL_ACCESS_TOKEN
+        sync: false
+      - key: LINE_CHANNEL_SECRET
+        sync: false
+      - key: LINE_CHANNEL_ID
+        sync: false
+      - key: X_BEARER_TOKEN
+        sync: false
+      - key: CRON_SCHEDULE
+        value: "0 9,12,15,18 * * *"
+      - key: SOCIAL_CRON_SCHEDULE
+        value: "*/5 * * * *"
+      - key: RUN_ON_START
+        value: "true"
+      - key: LOG_LEVEL
+        value: info
+      - key: PORT
+        value: "3000"
