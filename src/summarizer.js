@@ -33,7 +33,7 @@ function buildPrompt(newsData) {
   if (news['stock-th'] && news['stock-th'].length > 0) {
     prompt += `\n=== ข่าวหุ้นไทย (SET) ===\n`;
     news['stock-th'].forEach((item, i) => {
-      prompt += `${i + 1}. ${item.title}\n   ${item.summary.substring(0, 200)}\n`;
+      prompt += `${i + 1}. ${item.title}\n   ${item.summary.substring(0, 400)}\n`;
     });
   }
 
@@ -41,7 +41,7 @@ function buildPrompt(newsData) {
   if (news['stock-us'] && news['stock-us'].length > 0) {
     prompt += `\n=== ข่าวหุ้นอเมริกา (Wall Street) ===\n`;
     news['stock-us'].forEach((item, i) => {
-      prompt += `${i + 1}. ${item.title}\n   ${item.summary.substring(0, 200)}\n`;
+      prompt += `${i + 1}. ${item.title}\n   ${item.summary.substring(0, 400)}\n`;
     });
   }
 
@@ -49,7 +49,7 @@ function buildPrompt(newsData) {
   if (news['stock-cn'] && news['stock-cn'].length > 0) {
     prompt += `\n=== ข่าวหุ้นจีน ===\n`;
     news['stock-cn'].forEach((item, i) => {
-      prompt += `${i + 1}. ${item.title}\n   ${item.summary.substring(0, 200)}\n`;
+      prompt += `${i + 1}. ${item.title}\n   ${item.summary.substring(0, 400)}\n`;
     });
   }
 
@@ -57,7 +57,7 @@ function buildPrompt(newsData) {
   if (news.crypto && news.crypto.length > 0) {
     prompt += `\n=== ข่าวคริปโต ===\n`;
     news.crypto.forEach((item, i) => {
-      prompt += `${i + 1}. ${item.title}\n   ${item.summary.substring(0, 200)}\n`;
+      prompt += `${i + 1}. ${item.title}\n   ${item.summary.substring(0, 400)}\n`;
     });
   }
 
@@ -94,13 +94,15 @@ function buildPrompt(newsData) {
 รูปแบบสรุปที่ต้องการ:
 1. เริ่มด้วย "🤖 TAMA AI สรุปข่าวการลงทุน" พร้อมวันที่เวลา
 2. แบ่งเป็นหมวด: 🇹🇭 หุ้นไทย, 🇺🇸 หุ้นอเมริกา, 🇨🇳 หุ้นจีน, ₿ คริปโต, 🥇 ทองคำ, 💱 Forex
-3. แต่ละหมวดสรุป 2-3 ประเด็นสำคัญ
-4. ถ้ามีหุ้นที่น่าสนใจ ให้แนะนำพร้อมเหตุผลสั้นๆ (ถ้าไม่มีข้อมูลหุ้นน่าสนใจ ไม่ต้องใส่)
-5. ด้านล่างใส่ราคาคริปโตและทองคำ
-6. จบด้วย "💡 มุมมอง TAMA AI" วิเคราะห์สั้นๆ 2-3 บรรทัด
-7. หมวดไหนไม่มีข้อมูลข่าว ให้ข้ามหมวดนั้นไปเลย ไม่ต้องส่งหมวดที่ว่าง
-8. จำกัดความยาวไม่เกิน 2000 ตัวอักษร (LINE limit)
-9. ห้ามใส่ link หรือ URL ใดๆ`;
+3. แต่ละหมวดสรุปข่าวสำคัญ 3-5 ประเด็น พร้อมบริบทและผลกระทบ
+4. สรุปเนื้อหาบทความ ไม่ใช่แค่หัวข้อ — บอกว่าข่าวพูดถึงอะไร สาเหตุ ผลกระทบต่อตลาด
+5. วิเคราะห์แนวโน้มตลาดภาพรวมอย่างสั้น (ขาขึ้น/ขาลง/sideway)
+6. หุ้นที่น่าสนใจ: แนะนำพร้อมเหตุผล + โอกาส + ความเสี่ยง
+7. ด้านล่างใส่ราคาคริปโตและทองคำ
+8. จบด้วย "💡 มุมมอง TAMA AI" วิเคราะห์ภาพรวม 3-5 บรรทัด พร้อมสิ่งที่ต้องจับตา
+9. หมวดไหนไม่มีข้อมูลข่าว ให้ข้ามหมวดนั้นไปเลย ไม่ต้องส่งหมวดที่ว่าง
+10. จำกัดความยาวไม่เกิน 4500 ตัวอักษร
+11. ห้ามใส่ link หรือ URL ใดๆ`;
 
   return prompt;
 }
@@ -123,7 +125,7 @@ async function summarizeNews(newsData) {
     const result = await model.generateContent({
       contents: [{ role: 'user', parts: [{ text: prompt }] }],
       generationConfig: {
-        maxOutputTokens: 1500,
+        maxOutputTokens: 3000,
         temperature: 0.7,
       },
     });
@@ -131,9 +133,9 @@ async function summarizeNews(newsData) {
     const summary = result.response.text() || '';
     logger.info(`AI summary generated: ${summary.length} chars`);
 
-    // Ensure it doesn't exceed LINE limit (5000 chars max per message)
-    if (summary.length > 4900) {
-      return summary.substring(0, 4900) + '\n...';
+    // ส่งได้หลายข้อความ ไม่ต้อง limit มาก
+    if (summary.length > 9800) {
+      return summary.substring(0, 9800) + '\n...';
     }
 
     return summary;

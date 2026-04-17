@@ -124,6 +124,152 @@ async function getStockPrice(symbol) {
 }
 
 /**
+ * ดึงข้อมูล Technical Analysis จาก Yahoo Finance (historical data)
+ * คำนวณ RSI, SMA, EMA, MACD
+ */
+async function getTechnicalAnalysis(symbol) {
+  try {
+    const stockSymbol = extractStockSymbol(symbol);
+    if (!stockSymbol) return null;
+
+    // ดึงข้อมูล 3 เดือน (daily)
+    const { data } = await axios.get(
+      `https://query1.finance.yahoo.com/v8/finance/chart/${stockSymbol}`,
+      {
+        params: { interval: '1d', range: '3mo' },
+        headers: { 'User-Agent': 'TAMA-AI-Bot/1.0' },
+        timeout: 10000,
+      }
+    );
+
+    const result = data?.chart?.result?.[0];
+    if (!result || !result.indicators?.quote?.[0]) return null;
+
+    const closes = result.indicators.quote[0].close?.filter(p => p != null) || [];
+    const highs = result.indicators.quote[0].high?.filter(p => p != null) || [];
+    const lows = result.indicators.quote[0].low?.filter(p => p != null) || [];
+    const volumes = result.indicators.quote[0].volume?.filter(v => v != null) || [];
+
+    if (closes.length < 26) return null;
+
+    const meta = result.meta;
+    const currentPrice = meta.regularMarketPrice;
+    const name = meta.shortName || meta.symbol;
+
+    // คำนวณ SMA
+    const sma20 = calcSMA(closes, 20);
+    const sma50 = calcSMA(closes, 50);
+
+    // คำนวณ EMA
+    const ema12 = calcEMA(closes, 12);
+    const ema26 = calcEMA(closes, 26);
+
+    // คำนวณ MACD
+    const macdLine = ema12 - ema26;
+    const macdSignal = calcEMAFromValues(closes.slice(-26).map((_, i) => {
+      const e12 = calcEMASlice(closes, 12, closes.length - 26 + i + 1);
+      const e26 = calcEMASlice(closes, 26, closes.length - 26 + i + 1);
+      return e12 - e26;
+    }), 9);
+    const macdHistogram = macdLine - macdSignal;
+
+    // คำนวณ RSI (14 วัน)
+    const rsi = calcRSI(closes, 14);
+
+    // หา Support & Resistance
+    const recentLows = lows.slice(-20);
+    const recentHighs = highs.slice(-20);
+    const support = Math.min(...recentLows).toFixed(2);
+    const resistance = Math.max(...recentHighs).toFixed(2);
+
+    // Volume analysis
+    const avgVolume = volumes.slice(-20).reduce((a, b) => a + b, 0) / 20;
+    const lastVolume = volumes[volumes.length - 1] || 0;
+    const volumeRatio = (lastVolume / avgVolume).toFixed(2);
+
+    // Price change percentages
+    const price5d = closes[closes.length - 6] || closes[0];
+    const price1m = closes.length >= 22 ? closes[closes.length - 22] : closes[0];
+    const price3m = closes[0];
+    const change5d = (((currentPrice - price5d) / price5d) * 100).toFixed(2);
+    const change1m = (((currentPrice - price1m) / price1m) * 100).toFixed(2);
+    const change3m = (((currentPrice - price3m) / price3m) * 100).toFixed(2);
+
+    return {
+      symbol: meta.symbol,
+      name,
+      price: currentPrice,
+      sma20: sma20?.toFixed(2),
+      sma50: sma50?.toFixed(2),
+      ema12: ema12?.toFixed(2),
+      ema26: ema26?.toFixed(2),
+      rsi: rsi?.toFixed(1),
+      macd: macdLine?.toFixed(4),
+      macdSignal: macdSignal?.toFixed(4),
+      macdHistogram: macdHistogram?.toFixed(4),
+      support,
+      resistance,
+      volumeRatio,
+      change5d,
+      change1m,
+      change3m,
+    };
+  } catch (err) {
+    logger.warn(`Technical analysis failed for ${symbol}: ${err.message}`);
+    return null;
+  }
+}
+
+// --- Technical Indicator Helpers ---
+
+function calcSMA(data, period) {
+  if (data.length < period) return null;
+  const slice = data.slice(-period);
+  return slice.reduce((a, b) => a + b, 0) / period;
+}
+
+function calcEMA(data, period) {
+  if (data.length < period) return null;
+  return calcEMASlice(data, period, data.length);
+}
+
+function calcEMASlice(data, period, endIdx) {
+  const slice = data.slice(0, endIdx);
+  if (slice.length < period) return null;
+  const k = 2 / (period + 1);
+  let ema = slice.slice(0, period).reduce((a, b) => a + b, 0) / period;
+  for (let i = period; i < slice.length; i++) {
+    ema = slice[i] * k + ema * (1 - k);
+  }
+  return ema;
+}
+
+function calcEMAFromValues(values, period) {
+  if (values.length < period) return values[values.length - 1] || 0;
+  const k = 2 / (period + 1);
+  let ema = values.slice(0, period).reduce((a, b) => a + b, 0) / period;
+  for (let i = period; i < values.length; i++) {
+    ema = values[i] * k + ema * (1 - k);
+  }
+  return ema;
+}
+
+function calcRSI(data, period) {
+  if (data.length < period + 1) return null;
+  let gains = 0, losses = 0;
+  for (let i = data.length - period; i < data.length; i++) {
+    const diff = data[i] - data[i - 1];
+    if (diff > 0) gains += diff;
+    else losses -= diff;
+  }
+  const avgGain = gains / period;
+  const avgLoss = losses / period;
+  if (avgLoss === 0) return 100;
+  const rs = avgGain / avgLoss;
+  return 100 - (100 / (1 + rs));
+}
+
+/**
  * แปลงชื่อหุ้นเป็น Yahoo Finance symbol
  */
 function extractStockSymbol(text) {
@@ -209,10 +355,17 @@ function detectIntent(message) {
     if (lower.includes(kw)) return { type: 'crypto', keyword: kw };
   }
 
-  // ถามราคาหุ้นเฉพาะตัว
+  // ถามราคาหุ้นเฉพาะตัว หรือวิเคราะห์หุ้น
   const stockSymbol = extractStockSymbol(message);
-  if (stockSymbol && (lower.includes('ราคา') || lower.includes('เท่าไร') || lower.includes('เท่าไหร่') || lower.includes('price') || lower.includes('ตอนนี้'))) {
-    return { type: 'stock-price', keyword: message, symbol: stockSymbol };
+  if (stockSymbol) {
+    if (lower.includes('วิเคราะห์') || lower.includes('แนวโน้ม') || lower.includes('technical') || lower.includes('เทคนิค') || lower.includes('โอกาส') || lower.includes('ท้าทาย') || lower.includes('ควรซื้อ') || lower.includes('ควรขาย') || lower.includes('น่าซื้อ') || lower.includes('analyze')) {
+      return { type: 'stock-analyze', keyword: message, symbol: stockSymbol };
+    }
+    if (lower.includes('ราคา') || lower.includes('เท่าไร') || lower.includes('เท่าไหร่') || lower.includes('price') || lower.includes('ตอนนี้')) {
+      return { type: 'stock-price', keyword: message, symbol: stockSymbol };
+    }
+    // ถามชื่อหุ้นตรงๆ ก็วิเคราะห์เลย
+    return { type: 'stock-analyze', keyword: message, symbol: stockSymbol };
   }
 
   // ถามเกี่ยวกับหุ้น
@@ -255,19 +408,22 @@ function getChatSession(userId) {
     systemInstruction: `คุณคือ "TAMA AI" ผู้ช่วย AI ด้านการลงทุนส่วนตัว
 วันนี้คือ: ${todayStr}
 ตอบเป็นภาษาไทยเสมอ (ยกเว้นชื่อเฉพาะ) กระชับ ตรงประเด็น ใช้ emoji เหมาะสม
-คุณมีความรู้เรื่อง: หุ้นไทย, หุ้นอเมริกา, หุ้นจีน, คริปโต, ทองคำ, Forex, กองทุนรวม
+คุณมีความรู้เรื่อง: หุ้นไทย, หุ้นอเมริกา, หุ้นจีน, คริปโต, ทองคำ, Forex, กองทุนรวม, Technical Analysis
 - ตอบคำถามเรื่องการลงทุนทุกประเภท
-- วิเคราะห์หุ้น/คริปโตที่ถูกถาม
-- แนะนำด้วยข้อมูลและเหตุผล
+- เมื่อถูกถามเกี่ยวกับหุ้นแต่ละตัว ให้วิเคราะห์:
+  📊 Technical Analysis: แนวโน้มราคา (ขาขึ้น/ขาลง/sideways), RSI, MACD, SMA/EMA, แนวรับ-แนวต้าน
+  ✅ โอกาส: ปัจจัยบวกที่เอื้อต่อราคาหุ้น
+  ⚠️ ความท้าทาย: ปัจจัยเสี่ยงที่ต้องระวัง
+  💡 สรุป: คำแนะนำสั้นๆ (ซื้อ/ถือ/ขาย/รอดู) พร้อมเหตุผล
+- ถ้าได้รับข้อมูลราคาและ Technical data ให้ใช้ข้อมูล real-time นั้นวิเคราะห์ ห้ามใช้ข้อมูลเก่าจาก training data
 - เตือนความเสี่ยงเสมอ
-- ถ้าได้รับข้อมูลราคา real-time ให้ใช้ข้อมูลนั้นตอบ ห้ามใช้ข้อมูลเก่าจาก training data
-- จำกัดความยาวไม่เกิน 800 ตัวอักษร
+- จำกัดความยาวไม่เกิน 1500 ตัวอักษร
 - ถ้าไม่เกี่ยวกับการลงทุน ก็ตอบได้ แต่แจ้งว่าเชี่ยวชาญด้านลงทุน`,
   });
 
   const chat = model.startChat({
     generationConfig: {
-      maxOutputTokens: 800,
+      maxOutputTokens: 1500,
       temperature: 0.7,
     },
   });
@@ -300,11 +456,36 @@ async function handleChatMessage(userMessage, replyToken, userId) {
     }
 
     // ดึงข้อมูลราคาหุ้น real-time
-    if (intent.type === 'stock-price' || intent.type === 'stock') {
+    if (intent.type === 'stock-price') {
       const stock = await getStockPrice(userMessage);
       if (stock) {
         const sign = stock.change >= 0 ? '+' : '';
         contextData = `\n[ข้อมูลราคาหุ้นล่าสุด: ${stock.name} (${stock.symbol}) = ${stock.price} ${stock.currency} | เปลี่ยนแปลง: ${sign}${stock.change} (${sign}${stock.changePercent}%) | ปิดก่อนหน้า: ${stock.prevClose} | ข้อมูล ณ ${stock.date}]`;
+      }
+    }
+
+    // ดึงข้อมูล Technical Analysis สำหรับวิเคราะห์หุ้น
+    if (intent.type === 'stock-analyze' || intent.type === 'stock') {
+      const [stock, ta] = await Promise.all([
+        getStockPrice(userMessage),
+        getTechnicalAnalysis(userMessage),
+      ]);
+
+      if (stock) {
+        const sign = stock.change >= 0 ? '+' : '';
+        contextData = `\n[ราคาปัจจุบัน: ${stock.name} (${stock.symbol}) = ${stock.price} ${stock.currency} | เปลี่ยนแปลง: ${sign}${stock.change} (${sign}${stock.changePercent}%) | ข้อมูล ณ ${stock.date}]`;
+      }
+
+      if (ta) {
+        contextData += `\n[Technical Analysis - ${ta.symbol}]`;
+        contextData += `\n- SMA20: ${ta.sma20} | SMA50: ${ta.sma50}`;
+        contextData += `\n- EMA12: ${ta.ema12} | EMA26: ${ta.ema26}`;
+        contextData += `\n- RSI(14): ${ta.rsi}`;
+        contextData += `\n- MACD: ${ta.macd} | Signal: ${ta.macdSignal} | Histogram: ${ta.macdHistogram}`;
+        contextData += `\n- Support: ${ta.support} | Resistance: ${ta.resistance}`;
+        contextData += `\n- Volume Ratio (vs avg): ${ta.volumeRatio}x`;
+        contextData += `\n- เปลี่ยนแปลง 5 วัน: ${ta.change5d}% | 1 เดือน: ${ta.change1m}% | 3 เดือน: ${ta.change3m}%`;
+        contextData += `\n[ให้วิเคราะห์ข้อมูล Technical ด้านบน ระบุแนวโน้มราคา (ขาขึ้น/ขาลง/sideways), โอกาส, ความท้าทาย, แนวรับ-แนวต้าน, และคำแนะนำ พร้อมเตือนความเสี่ยง]`;
       }
     }
 
