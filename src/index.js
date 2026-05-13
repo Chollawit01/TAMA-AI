@@ -19,23 +19,15 @@ const URGENT_STATE_FILE = path.join(__dirname, '..', 'data', 'urgent_news_state.
 const DEFAULT_URGENT_KEYWORDS = [
   'ด่วน',
   'ข่าวด่วน',
-  'urgent',
   'breaking',
-  'flash',
+  'urgent',
   'crash',
   'halt',
   'circuit breaker',
-  'fed',
-  'fomc',
-  'rate hike',
-  'rate cut',
-  'tariff',
-  'sanction',
   'bankruptcy',
   'default',
   'สงคราม',
-  'แผ่นดินไหว',
-  'น้ำมัน',
+  'ตลาดร่วงหนัก',
 ];
 
 function loadUrgentState() {
@@ -260,7 +252,7 @@ async function main() {
   validateConfig();
 
   const cronSchedule = process.env.CRON_SCHEDULE || '0 11 * * *'; // Default: วันละ 1 ครั้ง เวลา 11:00
-  const urgentSchedule = process.env.URGENT_CRON_SCHEDULE || '*/15 * * * *'; // Default: ตรวจข่าวด่วนทุก 15 นาที
+  const urgentSchedule = process.env.URGENT_CRON_SCHEDULE || '0 * * * *'; // Default: ตรวจข่าวด่วนทุก 1 ชั่วโมง
   const socialSchedule = process.env.SOCIAL_CRON_SCHEDULE || '*/5 * * * *'; // Default: ทุก 5 นาที
   logger.info(`News schedule: ${cronSchedule}`);
   logger.info(`Urgent news schedule: ${urgentSchedule}`);
