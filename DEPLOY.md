@@ -9,7 +9,7 @@ git init
 git add .
 git commit -m "Initial commit - TAMA AI Bot"
 git branch -M main
-git remote add origin https://github.com/YOUR_USERNAME/TAMA-AI.git
+git remote add origin https://github.com/Chollawit01/TAMA-AI.git
 git push -u origin main
 ```
 
@@ -24,16 +24,23 @@ git push -u origin main
 ### 3. ตั้ง Environment Variables
 Railway Dashboard > Project > **Variables**
 
-เพิ่ม 7 variables นี้:
+เพิ่ม variables เหล่านี้:
 ```
-GEMINI_API_KEY=AIzaSyDNwYhOU_Yzv0_SkVmuM9BKGAkvxcU4WbQ
-LINE_CHANNEL_ACCESS_TOKEN=t5e/wHO+qoURVzOyv+ebd8q/+PWi693KaGFkEgRYabGwEouAnnjbO/FnM6ZpZIe9O/nb6raiH/zBAjzZu7LzdnOUpt9ADKEUj7tH+cJPFoUl2QiwOseCu/1O01L9p41OKB3PdSc19/cJu82yEuxw5wdB04t89/1O/w1cDnyilFU=
-LINE_CHANNEL_SECRET=625d2f72bbd922230b0d07544ef2ec7f
-LINE_CHANNEL_ID=2008744906
-X_BEARER_TOKEN=AAAAAAAAAAAAAAAAAAAAAAXB8wEAAAAAby26gP4avMT6UZmOYrzy7K%2FT26E%3DVgynr3CWD2Fln5A37rWMn1MTWFGngKbQbsAPy7jbI0Mc7CiunK
-CRON_SCHEDULE=0 9,12,15,18 * * *
+GEMINI_API_KEY=your-gemini-api-key
+GEMINI_MODEL=gemini-2.0-flash
+LINE_CHANNEL_ACCESS_TOKEN=your-line-channel-access-token
+LINE_CHANNEL_SECRET=your-line-channel-secret
+LINE_CHANNEL_ID=your-line-channel-id
+X_BEARER_TOKEN=your-x-bearer-token
+CRON_SCHEDULE=0 11 * * *
+URGENT_CRON_SCHEDULE=*/15 * * * *
+URGENT_NEWS_KEYWORDS=ด่วน,ข่าวด่วน,urgent,breaking,flash,fed,fomc,rate hike,rate cut,crash,halt
+URGENT_NEWS_RECENT_HOURS=8
 SOCIAL_CRON_SCHEDULE=*/5 * * * *
+RUN_ON_START=false
 ```
+
+หมายเหตุ: ถ้าเคยเอา secret จริงใส่ไว้ในเอกสารหรือ commit ไปแล้ว ควร rotate key นั้นทันที
 
 ### 4. ทำเสร็จแล้ว!
 Railway จะ Auto Deploy เมื่อคุณ push code ใหม่

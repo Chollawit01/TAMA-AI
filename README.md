@@ -1,12 +1,13 @@
 # TAMA AI - Investment News Bot
 
-AI Bot สรุปข่าวการลงทุนทุกประเภท ส่งแจ้งเตือนผ่าน LINE ทุก 1 ชั่วโมง
+AI Bot สรุปข่าวการลงทุนทุกประเภท ส่งแจ้งเตือนผ่าน LINE วันละ 1 ครั้งเวลา 11:00 และส่งข่าวด่วนเพิ่มเมื่อพบเหตุการณ์สำคัญ
 
 ## Features
 
 - ดึงข่าวจากหลายแหล่ง: หุ้นไทย, ตลาดโลก, คริปโต, Forex, ทองคำ
-- ใช้ AI (GPT) สรุปข่าวเป็นภาษาไทย อ่านง่าย
-- ส่งแจ้งเตือนผ่าน LINE Notify อัตโนมัติทุก 1 ชั่วโมง
+- ใช้ Gemini สรุปข่าวเป็นภาษาไทย อ่านง่าย
+- ส่งแจ้งเตือนผ่าน LINE Messaging API อัตโนมัติวันละ 1 ครั้งเวลา 11:00
+- มีโหมดข่าวด่วนส่งเพิ่มแยกต่างหากเมื่อเจอคำ/เหตุการณ์เข้าข่าย
 - แสดงราคา Crypto และทองคำ real-time
 - วิเคราะห์มุมมองสั้นๆ จาก AI
 
@@ -46,18 +47,16 @@ npm install
 
 ### 2. สร้าง API Keys
 
-#### OpenAI API Key
-1. ไปที่ https://platform.openai.com/api-keys
+#### Gemini API Key
+1. ไปที่ https://aistudio.google.com/app/apikey
 2. สร้าง API Key ใหม่
 3. คัดลอก key ไว้
 
-#### LINE Notify Token
-1. ไปที่ https://notify-bot.line.me/my/
-2. Login ด้วย LINE Account
-3. กด **"Generate token"**
-4. ตั้งชื่อ Token เช่น "TAMA AI"
-5. เลือกห้องแชทที่ต้องการรับแจ้งเตือน (เช่น "1-on-1 chat with LINE Notify" หรือกลุ่ม)
-6. คัดลอก Token ไว้
+#### LINE Messaging API
+1. ไปที่ https://developers.line.biz/console/
+2. สร้าง Provider และ Messaging API Channel
+3. เปิดแท็บ Messaging API แล้วคัดลอก Channel access token
+4. ไปที่ Basic settings แล้วคัดลอก Channel secret และ Channel ID
 
 #### Gold API (Optional)
 1. ไปที่ https://www.goldapi.io/
@@ -73,8 +72,13 @@ copy .env.example .env
 แก้ไขไฟล์ `.env` ใส่ค่าจริง:
 
 ```env
-OPENAI_API_KEY=sk-xxxxxxxxxxxxxxxx
-LINE_NOTIFY_TOKEN=xxxxxxxxxxxxxxxx
+GEMINI_API_KEY=your-gemini-api-key
+LINE_CHANNEL_ACCESS_TOKEN=your-line-channel-access-token
+LINE_CHANNEL_SECRET=your-line-channel-secret
+LINE_CHANNEL_ID=your-line-channel-id
+CRON_SCHEDULE=0 11 * * *
+URGENT_CRON_SCHEDULE=*/15 * * * *
+RUN_ON_START=false
 ```
 
 ### 4. รันโปรแกรม
@@ -126,19 +130,24 @@ TAMA AI/
 
 | Variable | Required | Default | Description |
 |---|---|---|---|
-| `OPENAI_API_KEY` | Yes | - | OpenAI API Key |
-| `LINE_NOTIFY_TOKEN` | Yes | - | LINE Notify Token |
-| `OPENAI_MODEL` | No | `gpt-4o-mini` | โมเดล AI ที่ใช้ |
+| `GEMINI_API_KEY` | Yes | - | Gemini API Key |
+| `LINE_CHANNEL_ACCESS_TOKEN` | Yes | - | LINE Messaging API access token |
+| `LINE_CHANNEL_SECRET` | Yes | - | LINE channel secret |
+| `LINE_CHANNEL_ID` | Yes | - | LINE channel ID |
+| `GEMINI_MODEL` | No | `gemini-2.0-flash` | โมเดล AI ที่ใช้ |
 | `GOLD_API_KEY` | No | - | Gold API Key (optional) |
-| `CRON_SCHEDULE` | No | `0 * * * *` | Cron schedule (ทุก 1 ชม.) |
-| `RUN_ON_START` | No | `true` | รันทันทีเมื่อเริ่ม |
+| `CRON_SCHEDULE` | No | `0 11 * * *` | Cron schedule สำหรับสรุปข่าวหลัก |
+| `URGENT_CRON_SCHEDULE` | No | `*/15 * * * *` | Cron schedule ตรวจข่าวด่วน |
+| `URGENT_NEWS_KEYWORDS` | No | default list | คำที่ใช้คัดข่าวด่วน |
+| `URGENT_NEWS_RECENT_HOURS` | No | `8` | ช่วงเวลาย้อนหลังที่ใช้คัดข่าวด่วน |
+| `RUN_ON_START` | No | `false` | รันทันทีเมื่อเริ่ม |
 | `LOG_LEVEL` | No | `info` | Log level |
 
 ## Cron Schedule Examples
 
 | Schedule | Description |
 |---|---|
-| `0 * * * *` | ทุก 1 ชั่วโมง (default) |
+| `0 11 * * *` | ทุกวันเวลา 11:00 (default) |
 | `*/30 * * * *` | ทุก 30 นาที |
 | `0 9,12,17 * * *` | เฉพาะ 9:00, 12:00, 17:00 |
 | `0 8-18 * * 1-5` | ทุกชม. เฉพาะ 8:00-18:00 วันจันทร์-ศุกร์ |
