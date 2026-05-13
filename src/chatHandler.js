@@ -18,6 +18,19 @@ function getClient() {
   return genAI;
 }
 
+function formatBangkokDateTime(dateValue) {
+  if (!dateValue || Number.isNaN(new Date(dateValue).getTime())) return 'ไม่ทราบเวลา';
+
+  return new Date(dateValue).toLocaleString('th-TH', {
+    timeZone: 'Asia/Bangkok',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
 // ====================================================
 // ดึงข้อมูลราคา real-time
 // ====================================================
@@ -105,7 +118,7 @@ async function getStockPrice(symbol) {
     const currency = meta.currency || 'THB';
     const name = meta.shortName || meta.symbol;
     const marketTime = new Date(meta.regularMarketTime * 1000);
-    const dateStr = marketTime.toLocaleDateString('th-TH', { timeZone: 'Asia/Bangkok', day: 'numeric', month: 'long', year: 'numeric' });
+    const dateStr = formatBangkokDateTime(marketTime);
 
     return {
       symbol: meta.symbol,
@@ -145,6 +158,7 @@ async function getTechnicalAnalysis(symbol) {
     const result = data?.chart?.result?.[0];
     if (!result || !result.indicators?.quote?.[0]) return null;
 
+    const timestamps = result.timestamp || [];
     const closes = result.indicators.quote[0].close?.filter(p => p != null) || [];
     const highs = result.indicators.quote[0].high?.filter(p => p != null) || [];
     const lows = result.indicators.quote[0].low?.filter(p => p != null) || [];
@@ -155,6 +169,11 @@ async function getTechnicalAnalysis(symbol) {
     const meta = result.meta;
     const currentPrice = meta.regularMarketPrice;
     const name = meta.shortName || meta.symbol;
+    const firstTimestamp = timestamps[0] ? new Date(timestamps[0] * 1000) : null;
+    const lastTimestamp = timestamps[timestamps.length - 1]
+      ? new Date(timestamps[timestamps.length - 1] * 1000)
+      : null;
+    const marketTime = meta.regularMarketTime ? new Date(meta.regularMarketTime * 1000) : null;
 
     // คำนวณ SMA
     const sma20 = calcSMA(closes, 20);
@@ -213,6 +232,11 @@ async function getTechnicalAnalysis(symbol) {
       change5d,
       change1m,
       change3m,
+      interval: 'รายวัน (Daily)',
+      range: '3 เดือนล่าสุด',
+      periodStart: formatBangkokDateTime(firstTimestamp),
+      periodEnd: formatBangkokDateTime(lastTimestamp || marketTime),
+      latestDataTime: formatBangkokDateTime(marketTime || lastTimestamp),
     };
   } catch (err) {
     logger.warn(`Technical analysis failed for ${symbol}: ${err.message}`);
@@ -400,7 +424,7 @@ function getChatSession(userId) {
     return chatSessions.get(userId);
   }
 
-  const todayStr = new Date().toLocaleDateString('th-TH', { timeZone: 'Asia/Bangkok', day: 'numeric', month: 'long', year: 'numeric' });
+  const todayStr = formatBangkokDateTime(new Date());
 
   const client = getClient();
   const model = client.getGenerativeModel({
@@ -416,6 +440,9 @@ function getChatSession(userId) {
   ⚠️ ความท้าทาย: ปัจจัยเสี่ยงที่ต้องระวัง
   💡 สรุป: คำแนะนำสั้นๆ (ซื้อ/ถือ/ขาย/รอดู) พร้อมเหตุผล
 - ถ้าได้รับข้อมูลราคาและ Technical data ให้ใช้ข้อมูล real-time นั้นวิเคราะห์ ห้ามใช้ข้อมูลเก่าจาก training data
+- ต้องระบุช่วงเวลาของข้อมูลทุกครั้ง เช่น กรอบรายวัน 3 เดือนล่าสุด และวันที่/เวลาข้อมูลล่าสุด
+- ห้ามเดาว่าเป็นข้อมูล intraday ถ้าข้อมูลที่ได้รับเป็นกรอบรายวัน
+- ห้ามเขียนคำว่า "รอข้อมูล" ถ้าข้อมูลบางส่วนไม่มี ให้บอกว่า "ยังไม่พบข้อมูลจากแหล่งข้อมูล" อย่างตรงไปตรงมา
 - เตือนความเสี่ยงเสมอ
 - จำกัดความยาวไม่เกิน 1500 ตัวอักษร
 - ถ้าไม่เกี่ยวกับการลงทุน ก็ตอบได้ แต่แจ้งว่าเชี่ยวชาญด้านลงทุน`,
@@ -460,7 +487,7 @@ async function handleChatMessage(userMessage, replyToken, userId) {
       const stock = await getStockPrice(userMessage);
       if (stock) {
         const sign = stock.change >= 0 ? '+' : '';
-        contextData = `\n[ข้อมูลราคาหุ้นล่าสุด: ${stock.name} (${stock.symbol}) = ${stock.price} ${stock.currency} | เปลี่ยนแปลง: ${sign}${stock.change} (${sign}${stock.changePercent}%) | ปิดก่อนหน้า: ${stock.prevClose} | ข้อมูล ณ ${stock.date}]`;
+        contextData = `\n[ข้อมูลราคาหุ้นล่าสุด: ${stock.name} (${stock.symbol}) = ${stock.price} ${stock.currency} | เปลี่ยนแปลง: ${sign}${stock.change} (${sign}${stock.changePercent}%) | ปิดก่อนหน้า: ${stock.prevClose} | ข้อมูลล่าสุด ณ ${stock.date}]`;
       }
     }
 
@@ -473,11 +500,13 @@ async function handleChatMessage(userMessage, replyToken, userId) {
 
       if (stock) {
         const sign = stock.change >= 0 ? '+' : '';
-        contextData = `\n[ราคาปัจจุบัน: ${stock.name} (${stock.symbol}) = ${stock.price} ${stock.currency} | เปลี่ยนแปลง: ${sign}${stock.change} (${sign}${stock.changePercent}%) | ข้อมูล ณ ${stock.date}]`;
+        contextData = `\n[ราคาล่าสุด: ${stock.name} (${stock.symbol}) = ${stock.price} ${stock.currency} | เปลี่ยนแปลง: ${sign}${stock.change} (${sign}${stock.changePercent}%) | ข้อมูลล่าสุด ณ ${stock.date}]`;
       }
 
       if (ta) {
         contextData += `\n[Technical Analysis - ${ta.symbol}]`;
+        contextData += `\n- Timeframe: ${ta.interval} | ช่วงข้อมูล: ${ta.range} (${ta.periodStart} ถึง ${ta.periodEnd})`;
+        contextData += `\n- ข้อมูลล่าสุด ณ: ${ta.latestDataTime}`;
         contextData += `\n- SMA20: ${ta.sma20} | SMA50: ${ta.sma50}`;
         contextData += `\n- EMA12: ${ta.ema12} | EMA26: ${ta.ema26}`;
         contextData += `\n- RSI(14): ${ta.rsi}`;
