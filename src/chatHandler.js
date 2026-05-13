@@ -31,6 +31,83 @@ function formatBangkokDateTime(dateValue) {
   });
 }
 
+function getYahooFinanceUrl(symbol) {
+  return `https://finance.yahoo.com/quote/${encodeURIComponent(symbol)}`;
+}
+
+function getTradingViewUrl(symbol) {
+  const upperSymbol = symbol.toUpperCase();
+  const directSymbols = {
+    AAPL: 'NASDAQ-AAPL',
+    GOOGL: 'NASDAQ-GOOGL',
+    GOOG: 'NASDAQ-GOOG',
+    MSFT: 'NASDAQ-MSFT',
+    AMZN: 'NASDAQ-AMZN',
+    TSLA: 'NASDAQ-TSLA',
+    META: 'NASDAQ-META',
+    NVDA: 'NASDAQ-NVDA',
+    AMD: 'NASDAQ-AMD',
+    NFLX: 'NASDAQ-NFLX',
+    '^GSPC': 'SP-SPX',
+    '^DJI': 'DJ-DJI',
+    '^IXIC': 'NASDAQ-IXIC',
+  };
+
+  if (upperSymbol.endsWith('.BK')) {
+    const baseSymbol = upperSymbol.replace('.BK', '');
+    return `https://www.tradingview.com/symbols/SET-${baseSymbol}/`;
+  }
+
+  if (directSymbols[upperSymbol]) {
+    return `https://www.tradingview.com/symbols/${directSymbols[upperSymbol]}/`;
+  }
+
+  return `https://www.tradingview.com/search/?query=${encodeURIComponent(symbol)}`;
+}
+
+function getTradingViewCryptoUrl(coinId) {
+  const directSymbols = {
+    bitcoin: 'CRYPTO-BTCUSD',
+    ethereum: 'CRYPTO-ETHUSD',
+    binancecoin: 'CRYPTO-BNBUSD',
+    solana: 'CRYPTO-SOLUSD',
+    ripple: 'CRYPTO-XRPUSD',
+    dogecoin: 'CRYPTO-DOGEUSD',
+    cardano: 'CRYPTO-ADAUSD',
+    polkadot: 'CRYPTO-DOTUSD',
+    'matic-network': 'CRYPTO-MATICUSD',
+    'avalanche-2': 'CRYPTO-AVAXUSD',
+    chainlink: 'CRYPTO-LINKUSD',
+    sui: 'CRYPTO-SUIUSD',
+    near: 'CRYPTO-NEARUSD',
+    aptos: 'CRYPTO-APTUSD',
+  };
+
+  const tvSymbol = directSymbols[coinId];
+  if (tvSymbol) {
+    return `https://www.tradingview.com/symbols/${tvSymbol}/`;
+  }
+
+  return `https://www.tradingview.com/search/?query=${encodeURIComponent(coinId)}`;
+}
+
+function formatSourceLinks(sourceLinks) {
+  const uniqueLinks = [];
+  const seen = new Set();
+
+  for (const source of sourceLinks) {
+    const key = `${source.name}|${source.url}`;
+    if (!seen.has(key)) {
+      uniqueLinks.push(source);
+      seen.add(key);
+    }
+  }
+
+  if (uniqueLinks.length === 0) return '';
+
+  return `\n\nแหล่งข้อมูล:\n${uniqueLinks.map((source) => `- ${source.name}: ${source.url}`).join('\n')}`;
+}
+
 // ====================================================
 // ดึงข้อมูลราคา real-time
 // ====================================================
@@ -83,6 +160,8 @@ async function getCryptoPrice(query) {
       change24h: info.usd_24h_change?.toFixed(2),
       marketCap: info.usd_market_cap,
       volume24h: info.usd_24h_vol,
+      sourceUrl: 'https://www.coingecko.com/',
+      tradingViewUrl: getTradingViewCryptoUrl(coinId),
     };
   } catch {
     return null;
@@ -129,6 +208,8 @@ async function getStockPrice(symbol) {
       currency,
       date: dateStr,
       prevClose,
+      sourceUrl: getYahooFinanceUrl(meta.symbol),
+      tradingViewUrl: getTradingViewUrl(meta.symbol),
     };
   } catch (err) {
     logger.warn(`Stock price fetch failed for ${symbol}: ${err.message}`);
@@ -237,6 +318,8 @@ async function getTechnicalAnalysis(symbol) {
       periodStart: formatBangkokDateTime(firstTimestamp),
       periodEnd: formatBangkokDateTime(lastTimestamp || marketTime),
       latestDataTime: formatBangkokDateTime(marketTime || lastTimestamp),
+      sourceUrl: getYahooFinanceUrl(meta.symbol),
+      tradingViewUrl: getTradingViewUrl(meta.symbol),
     };
   } catch (err) {
     logger.warn(`Technical analysis failed for ${symbol}: ${err.message}`);
@@ -473,12 +556,15 @@ async function handleChatMessage(userMessage, replyToken, userId) {
     // ตรวจจับ intent
     const intent = detectIntent(userMessage);
     let contextData = '';
+    const sourceLinks = [];
 
     // ดึงข้อมูลราคา real-time ถ้าถามคริปโต
     if (intent.type === 'crypto') {
       const price = await getCryptoPrice(intent.keyword);
       if (price) {
         contextData = `\n[ข้อมูลราคาล่าสุด: ${price.coin} = $${price.usd?.toLocaleString()} (${price.thb?.toLocaleString()} THB) | 24h: ${price.change24h}% | Market Cap: $${(price.marketCap / 1e9)?.toFixed(1)}B]`;
+        sourceLinks.push({ name: 'CoinGecko', url: price.sourceUrl });
+        sourceLinks.push({ name: 'TradingView', url: price.tradingViewUrl });
       }
     }
 
@@ -488,6 +574,8 @@ async function handleChatMessage(userMessage, replyToken, userId) {
       if (stock) {
         const sign = stock.change >= 0 ? '+' : '';
         contextData = `\n[ข้อมูลราคาหุ้นล่าสุด: ${stock.name} (${stock.symbol}) = ${stock.price} ${stock.currency} | เปลี่ยนแปลง: ${sign}${stock.change} (${sign}${stock.changePercent}%) | ปิดก่อนหน้า: ${stock.prevClose} | ข้อมูลล่าสุด ณ ${stock.date}]`;
+        sourceLinks.push({ name: 'Yahoo Finance', url: stock.sourceUrl });
+        sourceLinks.push({ name: 'TradingView', url: stock.tradingViewUrl });
       }
     }
 
@@ -501,6 +589,8 @@ async function handleChatMessage(userMessage, replyToken, userId) {
       if (stock) {
         const sign = stock.change >= 0 ? '+' : '';
         contextData = `\n[ราคาล่าสุด: ${stock.name} (${stock.symbol}) = ${stock.price} ${stock.currency} | เปลี่ยนแปลง: ${sign}${stock.change} (${sign}${stock.changePercent}%) | ข้อมูลล่าสุด ณ ${stock.date}]`;
+        sourceLinks.push({ name: 'Yahoo Finance', url: stock.sourceUrl });
+        sourceLinks.push({ name: 'TradingView', url: stock.tradingViewUrl });
       }
 
       if (ta) {
@@ -515,6 +605,8 @@ async function handleChatMessage(userMessage, replyToken, userId) {
         contextData += `\n- Volume Ratio (vs avg): ${ta.volumeRatio}x`;
         contextData += `\n- เปลี่ยนแปลง 5 วัน: ${ta.change5d}% | 1 เดือน: ${ta.change1m}% | 3 เดือน: ${ta.change3m}%`;
         contextData += `\n[ให้วิเคราะห์ข้อมูล Technical ด้านบน ระบุแนวโน้มราคา (ขาขึ้น/ขาลง/sideways), โอกาส, ความท้าทาย, แนวรับ-แนวต้าน, และคำแนะนำ พร้อมเตือนความเสี่ยง]`;
+        sourceLinks.push({ name: 'Yahoo Finance', url: ta.sourceUrl });
+        sourceLinks.push({ name: 'TradingView', url: ta.tradingViewUrl });
       }
     }
 
@@ -530,6 +622,11 @@ async function handleChatMessage(userMessage, replyToken, userId) {
     // จำกัดความยาว
     if (reply.length > 4900) {
       reply = reply.substring(0, 4900) + '\n...';
+    }
+
+    const sourcesText = formatSourceLinks(sourceLinks);
+    if (sourcesText && reply.length + sourcesText.length <= 4900) {
+      reply += sourcesText;
     }
 
     // ตอบกลับผ่าน LINE Reply API
