@@ -137,7 +137,7 @@ TAMA AI/
 | `GEMINI_MODEL` | No | `gemini-2.0-flash` | โมเดล AI ที่ใช้ |
 | `GOLD_API_KEY` | No | - | Gold API Key (optional) |
 | `CRON_SCHEDULE` | No | `0 11 * * *` | Cron schedule สำหรับสรุปข่าวหลัก |
-| `URGENT_CRON_SCHEDULE` | No | `*/15 * * * *` | Cron schedule ตรวจข่าวด่วน |
+| `URGENT_CRON_SCHEDULE` | No | `0 * * * *` | Cron schedule ตรวจข่าวด่วน |
 | `URGENT_NEWS_KEYWORDS` | No | default list | คำที่ใช้คัดข่าวด่วน |
 | `URGENT_NEWS_RECENT_HOURS` | No | `8` | ช่วงเวลาย้อนหลังที่ใช้คัดข่าวด่วน |
 | `RUN_ON_START` | No | `false` | รันทันทีเมื่อเริ่ม |
